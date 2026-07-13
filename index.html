@@ -1,0 +1,1377 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta name="description" content="이재웅 — 한국해양대학교 기관시스템공학부 부교수. 선박 추진축계 진동과 CBM, ISPT 연구실.">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이재웅 — 수심 3,742 m</title>
+<noscript>
+  <style>
+    /* JS 없이도 전체 내용이 보이도록 — 본문 스타일보다 앞서 선언되므로 !important 필수 */
+    .reveal { opacity: 1 !important; transform: none !important; }
+    .voyage-sticky { position: static !important; height: auto !important; overflow: visible !important; padding: 6rem 0 !important; }
+    .voyage-track { transform: none !important; flex-direction: column !important; align-items: center !important; }
+    .voyage-hint { display: none !important; }
+    #lamp, #gauge, #motion-toggle { display: none !important; }
+    .dive-hint::after, .lure .dot, .lights .glow, .fade-in { animation: none !important; }
+  </style>
+</noscript>
+<style>
+  /* ─────────────────────────────────────────────
+     TOKENS · 낮바다(light) / 밤바다(dark)
+     surface → seafloor 의 물빛 계조
+     ───────────────────────────────────────────── */
+  :root {
+    --sea-0:  #E7F0F1;   /* 수면 */
+    --sea-1:  #C9DEE0;
+    --sea-1b: #9DC3C8;   /* 유광층 바닥 — 아직 어두운 잉크가 읽히는 마지막 물빛 */
+    --sea-2:  #2A5C6A;   /* 수온약층 아래 — 여기부터 밝은 잉크 */
+    --sea-3:  #1C4756;
+    --sea-4:  #113645;
+    --sea-5:  #0A2733;
+    --sea-6:  #051A24;
+    --sea-7:  #030F16;   /* 해저 */
+
+    --ink-surface: #10303B;
+    --muted-surface: #2F4C55;
+
+    --ink-deep: #D9E8E7;
+    --muted-deep: #BDD3D5;
+
+    --amber: #E4A84C;          /* 단 하나의 따뜻한 빛 */
+    --amber-soft: #E4A84C55;
+
+    --wave: #10303B;
+    --wave-accent: #C98F2E;
+
+    --serif: Georgia, "Nanum Myeongjo", "Noto Serif KR", Batang, "Apple SD Gothic Neo", serif;
+    --sans: Pretendard, "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+    --mono: "Cascadia Code", Consolas, "D2Coding", "SF Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --sea-0:  #0D2531;
+      --sea-1:  #0B2029;
+      --sea-1b: #0A1D26;
+      --sea-2:  #081923;
+      --sea-3:  #07151E;
+      --sea-4:  #05111A;
+      --sea-5:  #040D14;
+      --sea-6:  #03090F;
+      --sea-7:  #02060A;
+      --ink-surface: #D9E8E7;
+      --muted-surface: #93AFB2;
+      --wave: #9FC4C4;
+      --wave-accent: #E4A84C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --sea-0: #0D2531; --sea-1: #0B2029; --sea-1b: #0A1D26; --sea-2: #081923;
+    --sea-3: #07151E; --sea-4: #05111A; --sea-5: #040D14; --sea-6: #03090F; --sea-7: #02060A;
+    --ink-surface: #D9E8E7; --muted-surface: #93AFB2;
+    --wave: #9FC4C4; --wave-accent: #E4A84C;
+  }
+  :root[data-theme="light"] {
+    --sea-0: #E7F0F1; --sea-1: #C9DEE0; --sea-1b: #9DC3C8; --sea-2: #2A5C6A;
+    --sea-3: #1C4756; --sea-4: #113645; --sea-5: #0A2733; --sea-6: #051A24; --sea-7: #030F16;
+    --ink-surface: #10303B; --muted-surface: #2F4C55;
+    --wave: #10303B; --wave-accent: #C98F2E;
+  }
+
+  /* ─────────────────────────────────────────────
+     BASE
+     ───────────────────────────────────────────── */
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: var(--sea-7);
+    color: var(--ink-deep);
+    line-height: 1.8;
+    overflow-x: hidden;
+  }
+  ::selection { background: var(--amber); color: #0A1B22; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 2px; }
+  /* 밝은 수면 구간에서는 호박색 외곽선 대비가 부족하다 */
+  .z0 :focus-visible, .z1 :focus-visible { outline-color: var(--ink-surface); }
+  .dive-hint:focus-visible { opacity: 1; }
+
+  /* 각 수층이 잠수 그라데이션의 제 구간을 칠한다 —
+     섹션 경계와 물빛이 어긋나지 않도록 */
+  .zone { position: relative; z-index: 1; }
+  .zone-inner {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: clamp(6rem, 14vh, 9rem) 1.5rem;
+  }
+
+  .z0 { background: linear-gradient(var(--sea-0), var(--sea-1)); color: var(--ink-surface); }
+  .z1 { background: linear-gradient(var(--sea-1), var(--sea-1b)); color: var(--ink-surface); }
+  .zt { background: linear-gradient(var(--sea-1b), var(--sea-2)); }
+  .z2 { background: linear-gradient(var(--sea-2), var(--sea-3)); color: var(--ink-deep); }
+  .z3 { background: linear-gradient(var(--sea-3), var(--sea-4)); color: var(--ink-deep); }
+  .z4 { background: linear-gradient(var(--sea-4), var(--sea-5)); color: var(--ink-deep); }
+  .z5 { background: linear-gradient(var(--sea-5), var(--sea-6)); color: var(--ink-deep); }
+  .z6 { background: linear-gradient(var(--sea-6), var(--sea-7)); color: var(--ink-deep); }
+
+  .z0 .muted, .z1 .muted { color: var(--muted-surface); }
+  .z2 .muted, .z3 .muted, .z4 .muted, .z5 .muted, .z6 .muted { color: var(--muted-deep); }
+
+  /* ─────────────────────────────────────────────
+     TYPE
+     ───────────────────────────────────────────── */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 0.9em;
+    margin: 0 0 2.2rem;
+  }
+  .eyebrow::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.25;
+  }
+  .eyebrow .depth { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  h1, h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    text-wrap: balance;
+    margin: 0 0 1.6rem;
+  }
+  h2 { font-size: clamp(1.55rem, 3.4vw, 2.15rem); line-height: 1.4; }
+  p { margin: 0 0 1.4rem; max-width: 40rem; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ─────────────────────────────────────────────
+     HERO · 수면
+     ───────────────────────────────────────────── */
+  .hero {
+    min-height: 100svh;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+  #waves {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.5;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(transparent 4%, black 30%, black 82%, transparent 100%);
+            mask-image: linear-gradient(transparent 4%, black 30%, black 82%, transparent 100%);
+  }
+  .hero .zone-inner {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3rem;
+  }
+  .hero-coords {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    margin-bottom: 3rem;
+  }
+  .hero h1 {
+    font-size: clamp(3.2rem, 10vw, 6rem);
+    line-height: 1.08;
+    letter-spacing: 0.06em;
+    margin-bottom: 1.1rem;
+  }
+  .hero .romanized {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 0.7rem;
+  }
+  .hero .role {
+    font-size: 0.95rem;
+    margin-bottom: 2.4rem;
+  }
+  .hero .thesis {
+    font-family: var(--serif);
+    font-size: clamp(1.05rem, 2.2vw, 1.28rem);
+    line-height: 1.95;
+    max-width: 30em;
+  }
+  /* 현창(舷窓) — 배의 둥근 창으로 내다보이는 초상 */
+  .porthole {
+    flex: 0 0 auto;
+    width: clamp(8.5rem, 16vw, 11rem);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1px solid currentColor;
+    outline: 1px solid currentColor;
+    outline-offset: 6px;
+    opacity: 0.92;
+    background: var(--sea-3);
+  }
+  .porthole img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    filter: grayscale(1) contrast(1.02);
+    mix-blend-mode: luminosity;
+  }
+  @media (max-width: 700px) {
+    .hero .zone-inner { flex-direction: column-reverse; align-items: flex-start; }
+    .porthole { width: 7rem; outline-offset: 4px; }
+  }
+  .dive-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 2.2rem;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.3em;
+    opacity: 0.8;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .dive-hint::after {
+    content: "";
+    display: block;
+    width: 1px;
+    height: 2.4rem;
+    margin: 0.8rem auto 0;
+    background: currentColor;
+    animation: sound 2.6s ease-in-out infinite;
+    transform-origin: top;
+  }
+  @keyframes sound {
+    0%, 100% { transform: scaleY(0.35); opacity: 0.4; }
+    50% { transform: scaleY(1); opacity: 1; }
+  }
+  @media (max-height: 620px) { .dive-hint { display: none; } }
+
+  /* ─────────────────────────────────────────────
+     수온약층 — 빛이 끝나는 경계 (내용 없는 이행 구간)
+     ───────────────────────────────────────────── */
+  .zt {
+    height: 44svh;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 3.5rem;
+  }
+  .thermo-label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.3em;
+    color: var(--ink-deep);
+    margin: 0;
+  }
+
+  /* ─────────────────────────────────────────────
+     좌현 수심계
+     ───────────────────────────────────────────── */
+  #gauge {
+    position: fixed;
+    left: 1.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    line-height: 2;
+    color: #D9E8E7;
+    background: rgba(3, 15, 22, 0.72);   /* 계기판 — 어느 물빛 위에서도 읽히도록 */
+    padding: 0.75rem 0.95rem;
+    border-radius: 6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+  }
+  #gauge.on { opacity: 0.85; }
+  #gauge .num { font-size: 0.95rem; font-variant-numeric: tabular-nums; display: block; }
+  #gauge .tick {
+    display: block;
+    width: 1px;
+    height: 3.2rem;
+    background: currentColor;
+    opacity: 0.5;
+    margin: 0.6rem 0 0 1px;
+  }
+  /* 모바일: 우상단 콤팩트 계기 칩으로 */
+  @media (max-width: 900px) {
+    #gauge {
+      left: auto;
+      right: 0.9rem;
+      top: 0.9rem;
+      transform: none;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.58rem;
+      line-height: 1.55;
+      border-radius: 5px;
+    }
+    #gauge .num { font-size: 0.82rem; }
+    #gauge .tick, #gauge .lbl { display: none; }
+  }
+
+  /* ─────────────────────────────────────────────
+     LOG · 항적 / 연구 / 규범
+     ───────────────────────────────────────────── */
+  .log { list-style: none; margin: 3rem 0 0; padding: 0; }
+  .log li {
+    display: grid;
+    grid-template-columns: 7.5rem 1fr;
+    gap: 1.4rem;
+    padding: 1.6rem 0;
+    border-top: 1px solid;
+    border-image: linear-gradient(90deg, currentColor 0%, transparent 90%) 1;
+  }
+  .log li:last-child {
+    border-bottom: 1px solid;
+    border-image: linear-gradient(90deg, currentColor 0%, transparent 90%) 1;
+  }
+  .log .k {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding-top: 0.45rem;
+    opacity: 0.9;
+    font-variant-numeric: tabular-nums;
+  }
+  .log .v strong {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.08rem;
+    display: block;
+    margin-bottom: 0.3rem;
+  }
+  .log .v p { font-size: 0.95rem; margin: 0; }
+  @media (max-width: 560px) {
+    .log li { grid-template-columns: 1fr; gap: 0.4rem; }
+    .log .k { padding-top: 0; }
+  }
+  .shelf-note {
+    margin-top: 2.2rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+  }
+
+  /* ─────────────────────────────────────────────
+     항해 · ISPT 연구실 — 세로 스크롤이 옆으로 흐르는 구간
+     ───────────────────────────────────────────── */
+  .voyage { background: linear-gradient(var(--sea-3), var(--sea-3)); color: var(--ink-deep); }
+  .voyage .muted { color: var(--muted-deep); }
+  .voyage-sticky {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(1.4rem, 3.5vh, 2.6rem);
+  }
+  .voyage-head {
+    max-width: 46rem;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+  .voyage-head h2 { margin-bottom: 0.6rem; }
+  .voyage-hint { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.18em; margin: 0; }
+  .voyage-track {
+    display: flex;
+    align-items: stretch;
+    gap: clamp(1.2rem, 3vw, 2.4rem);
+    padding: 0 clamp(1.5rem, 8vw, 8rem);
+    will-change: transform;
+  }
+  .port {
+    flex: 0 0 auto;
+    width: min(80vw, 29rem);
+    border: 1px solid rgba(217, 232, 231, 0.22);
+    background: rgba(217, 232, 231, 0.035);
+    padding: 1.7rem 1.8rem 1.9rem;
+  }
+  .port .pk {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 1rem;
+    opacity: 0.9;
+  }
+  .port h3 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.14rem;
+    line-height: 1.5;
+    margin: 0 0 0.7rem;
+    text-wrap: balance;
+  }
+  .port p { font-size: 0.9rem; line-height: 1.75; margin: 0 0 0.9rem; }
+  .port p:last-child { margin-bottom: 0; }
+  .port ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; font-size: 0.88rem; }
+  .port li { padding-left: 1rem; position: relative; }
+  .port li::before { content: "–"; position: absolute; left: 0; opacity: 0.55; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.9rem; }
+  .chip {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
+    border: 1px solid rgba(217, 232, 231, 0.28);
+    border-radius: 999px;
+    padding: 0.22rem 0.62rem;
+    opacity: 0.85;
+    white-space: nowrap;
+  }
+  .port .status { font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.1em; opacity: 0.8; }
+  html.reduced .voyage { height: auto !important; }
+  html.reduced .voyage-sticky { position: static; height: auto; overflow: visible; padding: clamp(6rem, 14vh, 9rem) 0; }
+  html.reduced .voyage-track { transform: none !important; flex-direction: column; align-items: center; }
+  html.reduced .port { width: min(88vw, 32rem); }
+  html.reduced .voyage-hint { display: none; }
+
+  /* 잠수정 탐조등 — 커서를 따라오는 빛 (깊을수록 뚜렷해진다) */
+  #lamp {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 46rem;
+    height: 46rem;
+    margin: -23rem 0 0 -23rem;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(220, 238, 236, 0.09), rgba(220, 238, 236, 0.045) 45%, transparent 72%);
+    pointer-events: none;
+    z-index: 3;
+    opacity: 0;
+    will-change: transform, opacity;
+  }
+  html.reduced #lamp { display: none; }
+  @media (max-width: 700px) {
+    #lamp { width: 30rem; height: 30rem; margin: -15rem 0 0 -15rem; }
+  }
+
+  /* 현창 시선 — 커서를 따라 살짝 기운다 */
+  .porthole { transition: transform 0.35s ease-out; will-change: transform; }
+
+  /* 부상 — 해저에서 수면으로 */
+  .ascend { margin-top: 3.4rem; font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.16em; }
+  .ascend a {
+    color: var(--amber);
+    text-decoration: none;
+    border-bottom: 1px solid var(--amber-soft);
+    padding-bottom: 0.15rem;
+    transition: border-color 0.3s ease;
+  }
+  .ascend a:hover, .ascend a:focus-visible { border-color: var(--amber); }
+
+  /* ─────────────────────────────────────────────
+     측심 기록 · 논문
+     ───────────────────────────────────────────── */
+  .soundings { list-style: none; margin: 3rem 0 0; padding: 0; }
+  .soundings li {
+    display: grid;
+    grid-template-columns: 4.5rem 1fr;
+    gap: 1.4rem;
+    padding: 1.35rem 0;
+    border-top: 1px solid;
+    border-image: linear-gradient(90deg, currentColor 0%, transparent 90%) 1;
+  }
+  .soundings li:last-child {
+    border-bottom: 1px solid;
+    border-image: linear-gradient(90deg, currentColor 0%, transparent 90%) 1;
+  }
+  .soundings .yr {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    padding-top: 0.3rem;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+  }
+  .soundings .title {
+    font-family: var(--serif);
+    font-size: 1rem;
+    line-height: 1.55;
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+  .soundings .meta {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    display: block;
+  }
+  .soundings .meta em { font-style: normal; color: var(--amber); }
+  @media (max-width: 560px) {
+    .soundings li { grid-template-columns: 1fr; gap: 0.3rem; }
+    .soundings .yr { padding-top: 0; }
+  }
+  .more-soundings {
+    margin-top: 2.4rem;
+    font-size: 0.9rem;
+  }
+  .more-soundings a {
+    color: var(--amber);
+    text-decoration: none;
+    border-bottom: 1px solid var(--amber-soft);
+    transition: border-color 0.3s ease;
+  }
+  .more-soundings a:hover, .more-soundings a:focus-visible { border-color: var(--amber); }
+
+  /* ─────────────────────────────────────────────
+     발광 · 수상
+     ───────────────────────────────────────────── */
+  .lights { list-style: none; margin: 3rem 0 0; padding: 0; display: grid; gap: 1.15rem; }
+  .lights li {
+    display: grid;
+    grid-template-columns: 1rem 3.4rem 1fr;
+    align-items: baseline;
+    gap: 0.9rem;
+    font-size: 0.95rem;
+  }
+  .lights .glow {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 9px var(--amber);
+    justify-self: center;
+    align-self: center;
+    animation: breathe 4s ease-in-out infinite;
+  }
+  .lights li:nth-child(2) .glow { animation-delay: 0.7s; }
+  .lights li:nth-child(3) .glow { animation-delay: 1.4s; }
+  .lights li:nth-child(4) .glow { animation-delay: 2.1s; }
+  .lights li:nth-child(5) .glow { animation-delay: 2.8s; }
+  .lights li:nth-child(6) .glow { animation-delay: 3.5s; }
+  .lights .yr {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ─────────────────────────────────────────────
+     해저 · 연락
+     ───────────────────────────────────────────── */
+  .abyss .zone-inner { padding-bottom: 9rem; }
+  .lure {
+    display: inline-block;
+    margin-top: 2.6rem;
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    color: var(--amber);
+    text-decoration: none;
+    padding: 1rem 1.6rem;
+    border: 1px solid var(--amber-soft);
+    border-radius: 999px;
+    transition: box-shadow 0.6s ease, border-color 0.4s ease, background 0.4s ease;
+  }
+  .lure:hover, .lure:focus-visible {
+    border-color: var(--amber);
+    background: rgba(228, 168, 76, 0.07);
+    box-shadow: 0 0 44px rgba(228, 168, 76, 0.28);
+  }
+  .lure .dot {
+    display: inline-block;
+    width: 0.5em;
+    height: 0.5em;
+    margin-right: 0.7em;
+    border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 10px var(--amber);
+    animation: breathe 3.4s ease-in-out infinite;
+    vertical-align: 6%;
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: 0.45; box-shadow: 0 0 4px var(--amber); }
+    50% { opacity: 1; box-shadow: 0 0 14px var(--amber); }
+  }
+  .berth {
+    margin: 3.2rem 0 0;
+    display: grid;
+    grid-template-columns: 8rem 1fr;
+    gap: 0.45rem 1.2rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+  }
+  .berth dt { opacity: 0.75; text-transform: uppercase; }
+  .berth dd { margin: 0; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+  @media (max-width: 400px) { .berth { grid-template-columns: 1fr; } .berth dt { margin-top: 0.7rem; } }
+  .berth a { color: var(--amber); text-decoration: none; border-bottom: 1px solid var(--amber-soft); }
+  .berth a:hover, .berth a:focus-visible { border-bottom-color: var(--amber); }
+  .seafloor-note {
+    margin-top: 4.5rem;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    opacity: 0.75;
+  }
+
+  footer {
+    position: relative;
+    z-index: 1;
+    background: var(--sea-7);
+    color: var(--muted-deep);
+    text-align: center;
+    padding: 2.6rem 1.5rem 3.4rem;
+    font-size: 0.8rem;
+  }
+  footer .credo { font-family: var(--serif); font-style: italic; opacity: 0.8; }
+  footer p { max-width: none; }
+
+  /* ─────────────────────────────────────────────
+     바다눈 + 리빌
+     ───────────────────────────────────────────── */
+  #snow {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .reveal { opacity: 0; transform: translateY(1.6rem); transition: opacity 0.9s ease, transform 0.9s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* 수면 위로 떠오르는 첫 등장 — backwards fill: 끝난 뒤엔 흔적을 남기지 않는다.
+     to에서 opacity를 생략해 각 요소의 본래 투명도로 자연히 수렴시킨다 */
+  @keyframes surface-rise {
+    from { opacity: 0; transform: translateY(1.2rem); }
+    to { transform: none; }
+  }
+  .fade-in { animation: surface-rise 0.9s ease 0s backwards; }
+  /* dive-hint는 중앙정렬 transform을 유지한 채 떠올라야 한다 */
+  @keyframes hint-rise {
+    from { opacity: 0; transform: translate(-50%, 1.2rem); }
+    to { transform: translateX(-50%); }
+  }
+  .dive-hint.fade-in { animation-name: hint-rise; }
+  .fade-in.d1 { animation-delay: 0.15s; }
+  .fade-in.d2 { animation-delay: 0.3s; }
+  .fade-in.d3 { animation-delay: 0.45s; }
+  .fade-in.d4 { animation-delay: 0.6s; }
+  .fade-in.d5 { animation-delay: 0.8s; }
+
+  /* 미세 반응 — 손이 닿는 것마다 살짝 대답한다 */
+  .port { transition: transform 0.35s ease, border-color 0.35s ease; }
+  .port:hover { transform: translateY(-4px); border-color: rgba(228, 168, 76, 0.45); }
+  .chip { transition: border-color 0.3s ease; }
+  .chip:hover { border-color: var(--amber); }
+  .soundings .yr { transition: color 0.3s ease, opacity 0.3s ease; }
+  .soundings li:hover .yr { color: var(--amber); opacity: 1; }
+  .lights .glow { transition: box-shadow 0.4s ease; }
+  .lights li:hover .glow { box-shadow: 0 0 18px var(--amber); }
+
+  /* 모션 토글 — 장식 모션의 일시정지 수단 (WCAG 2.2.2) */
+  #motion-toggle {
+    position: fixed;
+    right: 1.4rem;
+    bottom: 1.4rem;
+    z-index: 11;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    padding: 0.55rem 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(217, 232, 231, 0.35);
+    background: rgba(3, 15, 22, 0.66);
+    color: #D9E8E7;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.3s ease;
+  }
+  #motion-toggle:hover, #motion-toggle:focus-visible { opacity: 1; }
+  body.paused .dive-hint::after,
+  body.paused .lure .dot,
+  body.paused .lights .glow { animation: none; }
+  body.paused #snow { display: none; }
+
+  /* OS '동작 줄이기' — 단, ?motion=full 명시 선택(html.motion-full)은 존중한다 */
+  @media (prefers-reduced-motion: reduce) {
+    html:not(.motion-full) { scroll-behavior: auto; }
+    html:not(.motion-full) .reveal { opacity: 1; transform: none; transition: none; }
+    html:not(.motion-full) .dive-hint::after,
+    html:not(.motion-full) .lure .dot,
+    html:not(.motion-full) .lights .glow,
+    html:not(.motion-full) .fade-in { animation: none; }
+    html:not(.motion-full) .port, html:not(.motion-full) .port:hover { transform: none; transition: none; }
+    html:not(.motion-full) #snow { display: none; }
+    html:not(.motion-full) #motion-toggle { display: none; }
+  }
+</style>
+</head>
+<body>
+<!-- 좌현 수심계 --><aside id="gauge" aria-hidden="true">
+  <span class="lbl">수심 DEPTH</span>
+  <span class="num" id="gauge-num">0 m</span>
+  <span id="gauge-zone">수면</span>
+  <span class="tick"></span>
+</aside>
+
+<canvas id="snow" aria-hidden="true"></canvas>
+<div id="lamp" aria-hidden="true"></div>
+
+<button id="motion-toggle" type="button" aria-pressed="false" hidden>물결 멈춤 PAUSE</button>
+
+<!-- ── 0 m · 수면 ─────────────────────────────── -->
+<header class="zone z0 hero" id="top">
+  <canvas id="waves" aria-hidden="true"></canvas>
+  <div class="zone-inner">
+    <div>
+      <p class="hero-coords muted fade-in">35°04′ N · 129°05′ E — 부산, 아치섬</p>
+      <h1 class="fade-in d1">이재웅</h1>
+      <p class="romanized muted fade-in d2">李在雄 · JAE-UNG LEE</p>
+      <p class="role muted fade-in d2">한국해양대학교 기관시스템공학부 부교수·공학박사</p>
+      <p class="thesis fade-in d3">스무 해 넘게 배의 심장 박동을 들어온 사람.<br>
+      이제는 그 소리로 바다의 규칙을 쓴다.</p>
+    </div>
+    <div class="porthole fade-in d1"><img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAA0JCgsKCA0LCwsPDg0QFCEVFBISFCgdHhghMCoyMS8qLi00O0tANDhHOS0uQllCR05QVFVUMz9dY1xSYktTVFH/2wBDAQ4PDxQRFCcVFSdRNi42UVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVH/wAARCAF5AdgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD06iiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKA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" alt="이재웅 초상" width="466" height="376"></div>
+  </div>
+  <a class="dive-hint fade-in d5" href="#track">잠수 시작 DIVE</a>
+</header>
+
+<main>
+
+<!-- ── −40 m · 유광층 · 항적 ──────────────────── -->
+<section class="zone z1" id="track">
+  <div class="zone-inner reveal">
+    <p class="eyebrow muted"><span class="depth">수심 −40 m</span><span>유광층 · EPIPELAGIC</span></p>
+    <h2>항적 — 배는 지나온 물길을 남긴다</h2>
+    <p>부산 영도 앞바다, 섬 하나가 통째로 캠퍼스인 학교에서 항해를 배웠다.
+    졸업하고는 책이 아니라 기관실에서 배를 다시 배웠고,
+    검사원이 되어 다른 배들의 심장을 열어 보았다.
+    그리고 출항했던 항구로 돌아왔다 — 이번에는 가르치는 사람으로.</p>
+    <ul class="log">
+      <li>
+        <span class="k">1999–2016</span>
+        <div class="v">
+          <strong>한국해양대학교 — 학사·석사·박사</strong>
+          <p>운항시스템공학으로 시작해 동력기계·재료공학으로 깊어진 공부.
+          바다 위의 시간과 병행한 학위였다.</p>
+        </div>
+      </li>
+      <li>
+        <span class="k">2003–2006</span>
+        <div class="v">
+          <strong>STX 팬오션 — 엔지니어</strong>
+          <p>도면 속의 기관이 실제로 뜨겁게 도는 곳. 첫 배움터는 기관실이었다.</p>
+        </div>
+      </li>
+      <li>
+        <span class="k">2007–2016</span>
+        <div class="v">
+          <strong>한국선급 — 책임검사원·기관파트장</strong>
+          <p>아홉 해 동안 수많은 기관을 열고 검사했다.
+          도면과 실물 사이의 거리를, 규정 한 줄의 무게를 배운 시간.</p>
+        </div>
+      </li>
+      <li>
+        <span class="k">2016–2019</span>
+        <div class="v">
+          <strong>목포해양대학교 — 조교수</strong>
+          <p>공학박사와 함께 강단으로. 듣던 소리를 가르치는 언어로 옮기기 시작했다.</p>
+        </div>
+      </li>
+      <li>
+        <span class="k">2019–현재</span>
+        <div class="v">
+          <strong>한국해양대학교 기관시스템공학부 — 부교수</strong>
+          <p>모교로의 귀항. 그사이 미주리대학교(2023–2025)에서
+          연구년을 보내고 다시 아치섬으로 돌아왔다.</p>
+        </div>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- ── 수온약층 ───────────────────────────────── -->
+<div class="zone zt">
+  <p class="thermo-label">수온약층 THERMOCLINE — 여기서 빛이 흐려지기 시작한다</p>
+</div>
+
+<!-- ── −540 m · 박광층 · 연구 ─────────────────── -->
+<section class="zone z2">
+  <div class="zone-inner reveal">
+    <p class="eyebrow muted"><span class="depth">수심 −540 m</span><span>박광층 · MESOPELAGIC</span></p>
+    <h2>희미한 빛으로 일하는 층</h2>
+    <p>연구는 박광층의 일이다 — 수면에서는 보이지 않는 것을 계기로 더듬는 일.
+    회전하는 축은 거짓말을 하지 않는다. 다만 아주 작게 말할 뿐이다.
+    그 작은 소리를 듣는 것이 이 층의 전공이다.</p>
+    <ul class="log">
+      <li>
+        <span class="k">축 SHAFT</span>
+        <div class="v">
+          <strong>추진축계 정렬과 진동</strong>
+          <p>기관의 힘이 프로펠러에 닿기까지, 수십 미터의 회전축이
+          선체와 물의 사정에 맞춰 휘고 떨린다. 그 어긋남을
+          스트레인게이지의 정밀함으로 읽는다.</p>
+        </div>
+      </li>
+      <li>
+        <span class="k">원인 CAUSE</span>
+        <div class="v">
+          <strong>동력전달장치·추진계통 손상 원인분석</strong>
+          <p>부러진 축은 이미 답을 알고 있다. 파면을 읽고 거꾸로 항해해서
+          사고의 첫 순간까지 거슬러 올라간다. 상선에서 수상함까지.</p>
+        </div>
+      </li>
+      <li>
+        <span class="k">맥박 PULSE</span>
+        <div class="v">
+          <strong>기기 상태모니터링과 잔여수명 예측</strong>
+          <p>고장 나기 전에 듣는다. 진동과 데이터로
+          기계에게 남은 시간을 계산하는 일 — 상태기반정비(CBM)의 심장부.</p>
+        </div>
+      </li>
+      <li>
+        <span class="k">학습 LEARN</span>
+        <div class="v">
+          <strong>지능형 기관상태 모니터링</strong>
+          <p>머신러닝과 딥러닝으로, 사람의 귀가 놓치는 주파수까지 듣는
+          당직자를 만든다.</p>
+        </div>
+      </li>
+    </ul>
+    <p class="shelf-note muted">역서 — 『진동공학』(2017, 공역)</p>
+  </div>
+</section>
+
+<!-- ── −800 m · 항해 · ISPT 연구실 (스크롤이 옆으로 흐른다) ── -->
+<section class="zone voyage" id="voyage">
+  <div class="voyage-sticky">
+    <div class="voyage-head">
+      <p class="eyebrow muted"><span class="depth">수심 −800 m</span><span>항해 UNDERWAY · ISPT LAB</span></p>
+      <h2>항해 — 여기서부터는 혼자 잠수하지 않는다</h2>
+      <p class="voyage-hint muted">그대로 스크롤하면, 항로를 따라 옆으로 나아간다 →</p>
+    </div>
+    <div class="voyage-track" id="voyage-track">
+      <article class="port">
+        <span class="pk">기항 01 · 연구실 THE LAB</span>
+        <h3>지능형 선박 추진기술 연구실 — ISPT</h3>
+        <p>Intelligent Ship Propulsion Technology Lab.
+        이재웅·이지웅 두 교수가 함께 이끄는 연구실.
+        매주 금요일 오전 열 시, 해사대학 신관 213호에 모여
+        각자의 연구를 꺼내 놓고 서로의 해도를 맞춰 본다.</p>
+        <p>연구 테마를 발굴하고, 발표로 생각을 다지고,
+        서로 다른 현장의 전문성을 잇는 것 — 이 배의 운항 목적이다.</p>
+      </article>
+      <article class="port">
+        <span class="pk">기항 02 · 두 개의 축 TWIN SCREWS</span>
+        <h3>Shaft × Engine — 추진계를 양쪽에서 본다</h3>
+        <ul>
+          <li><strong>Shaft(이재웅)</strong> — 축계 동역학, 정렬, 종·비틀림·횡 진동, 진단</li>
+          <li><strong>Engine(이지웅)</strong> — 기관 성능, 진단, 효율, 배출(EEXI·CII)</li>
+        </ul>
+        <p style="margin-top:0.9rem">축은 기관의 힘을 옮기고, 기관은 축의 사정을 만든다.
+        두 축이 맞물릴 때 추진계 전체가 보인다.</p>
+      </article>
+      <article class="port">
+        <span class="pk">기항 03 · 승조원 THE CREW</span>
+        <h3>기관실에서 강의실까지, 각자의 당직</h3>
+        <p>대학원 석·박사과정 학생들과 현업의 전문가 스무 명 남짓이
+        한 배를 탄다. 선급, 엔진 메이커, 조선소, 해군 —
+        각자의 바다에서 가져온 질문들이 금요일 아침에 모인다.</p>
+        <ul class="chips" aria-label="멤버 소속 기관">
+          <li class="chip">한국선급</li><li class="chip">MAN-ES</li><li class="chip">WinGD</li>
+          <li class="chip">ABS</li><li class="chip">한화오션</li><li class="chip">한화시스템</li>
+          <li class="chip">효성중공업</li><li class="chip">KOMERI</li><li class="chip">대한민국해군</li>
+          <li class="chip">KIMFT</li><li class="chip">코밸</li><li class="chip">G-marine</li>
+        </ul>
+      </article>
+      <article class="port">
+        <span class="pk">기항 04 · 실선 계측 SEA TRIALS</span>
+        <h3>바다가 실험실이다</h3>
+        <p>실습선 한나라·한바다·새누리, 그리고 5만 톤급 MR 탱커까지 —
+        도는 축에 스트레인게이지를 붙이고 텔레메트리로 신호를 건져 올린다.</p>
+        <ul>
+          <li>풀브리지 스트레인게이지 + 텔레메트리 — 굽힘·비틀림</li>
+          <li>타코미터·LVDT·레이저 센서·가속도계 — 회전·변위·진동</li>
+          <li>가속, 급전타, crash astern까지 — 실제 기동 중의 계측</li>
+        </ul>
+      </article>
+      <article class="port">
+        <span class="pk">기항 05 · 항로 R&amp;D COURSE</span>
+        <h3>지금 가고 있는 항로들</h3>
+        <ul>
+          <li>한국연구재단 — 기본연구 <span class="status">진행 중</span> · 생애 첫 연구 <span class="status">진행 중</span> · 기초연구실 <span class="status">예정</span></li>
+          <li>해양수산부 — 자율운항선박 기술개발 <span class="status">진행 중</span> · 700마력급 연안선박 LPG 추진시스템 개발·실증 <span class="status">예정</span></li>
+          <li>산업통상자원부 — 선박용 암모니아 연료공급시스템 기술개발·실증 <span class="status">예정</span> · 친환경 연안선박 해상실증 플랫폼 <span class="status">예정</span></li>
+        </ul>
+        <p style="margin-top:0.9rem">항해가 끝나면, 다시 아래로 — 측심 기록이 기다린다.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ── −1,400 m · 무광층 · 측심 기록 ──────────── -->
+<section class="zone z3">
+  <div class="zone-inner reveal">
+    <p class="eyebrow muted"><span class="depth">수심 −1,400 m</span><span>무광층 · BATHYPELAGIC</span></p>
+    <h2>측심 — 스물세 번, 바닥까지 줄을 내렸다</h2>
+    <p>논문 한 편은 측심 한 번이다. 아무도 재 보지 않은 깊이에 줄을 내려
+    숫자 하나를 얻어 올라오는 일. SCIE급 스물세 번의 기록 중 몇 개의 수심.</p>
+    <ol class="soundings">
+      <li>
+        <span class="yr">2018</span>
+        <div>
+          <span class="title">Application of strain gauge method for investigating influence of ship shaft movement by hydrodynamic propeller forces on shaft alignment</span>
+          <span class="meta muted">Measurement (Elsevier) · <em>제1저자·교신저자</em></span>
+        </div>
+      </li>
+      <li>
+        <span class="yr">2019</span>
+        <div>
+          <span class="title">Investigation on effective support point of single stern tube bearing for marine propulsion shaft alignment</span>
+          <span class="meta muted">Marine Structures (Elsevier) · <em>제1저자·교신저자</em></span>
+        </div>
+      </li>
+      <li>
+        <span class="yr">2020</span>
+        <div>
+          <span class="title">Determining the influence of ship hull deformations caused by draught change on shaft alignment application using FE analysis</span>
+          <span class="meta muted">Ocean Engineering (Elsevier) · <em>교신저자</em></span>
+        </div>
+      </li>
+      <li>
+        <span class="yr">2022</span>
+        <div>
+          <span class="title">Establishing the true dynamic bending moment of propeller shaft using a single bridge of strain gauge</span>
+          <span class="meta muted">Applied Sciences (MDPI) · <em>교신저자</em></span>
+        </div>
+      </li>
+      <li>
+        <span class="yr">2022</span>
+        <div>
+          <span class="title">Algorithm for monitoring emissions based on actual speed of ships participating in the Korean Vessel Speed Reduction Program</span>
+          <span class="meta muted">Energies (MDPI) · <em>제1저자</em></span>
+        </div>
+      </li>
+      <li>
+        <span class="yr">2024</span>
+        <div>
+          <span class="title">An experimental investigation of ship propulsion system fatigue damage during crash astern maneuver</span>
+          <span class="meta muted">Ocean Engineering (Elsevier) · <em>교신저자</em></span>
+        </div>
+      </li>
+      <li>
+        <span class="yr">2025</span>
+        <div>
+          <span class="title">Integration of theoretical and experimental torsional vibration analysis in a marine propulsion system with component degradation</span>
+          <span class="meta muted">Applied Sciences (MDPI) · <em>교신저자</em></span>
+        </div>
+      </li>
+    </ol>
+    <p class="more-soundings muted">이 아래로 열여섯 번의 측심이 더 있다 —
+    <a href="https://scholar.google.co.kr/citations?user=BB3U0zYAAAAJ&amp;hl=ko" target="_blank" rel="noopener">Google Scholar에서 전체 기록 보기</a></p>
+  </div>
+</section>
+
+<!-- ── −2,700 m · 무광층 심부 · 규범과 심판 ────── -->
+<section class="zone z4">
+  <div class="zone-inner reveal">
+    <p class="eyebrow muted"><span class="depth">수심 −2,700 m</span><span>무광층 심부 · LOWER BATHYPELAGIC</span></p>
+    <h2>빛이 없는 곳에서는 계기로 항해한다</h2>
+    <p>기술은 규범이 되어야 모두를 지킨다. 그래서 이 캄캄한 층의 일은,
+    실은 수면 위 어느 당직자의 하루를 지키는 일이다.</p>
+    <ul class="log">
+      <li>
+        <span class="k">협약 IMO</span>
+        <div class="v">
+          <strong>국제해사기구 협약이행전문위원회(III)</strong>
+          <p>런던의 회의장, 대한민국 대표단의 자리에서 훈령을 다듬고
+          발언문을 벼린다. 회의장의 한 문장이 어느 바다 위
+          선원의 하루를 바꾼다.</p>
+        </div>
+      </li>
+      <li>
+        <span class="k">심판 TRIBUNAL</span>
+        <div class="v">
+          <strong>중앙해양안전심판원 심판변론인</strong>
+          <p>사고가 남긴 기록에서 원인을 가려내는 자리.
+          기관실의 언어로 변론한다.</p>
+        </div>
+      </li>
+      <li>
+        <span class="k">학회 SOCIETY</span>
+        <div class="v">
+          <strong>한국동력기계공학회 편집이사·한국마린엔지니어링학회 홍보이사</strong>
+          <p>다음 측심들이 실릴 지면을 고르고(2022–), 그 기록이 더 멀리
+          닿게 한다(2025–). 한국마린엔지니어링학회에서는 편집이사(2021–2024)를 지냈다.</p>
+        </div>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- ── −3,300 m · 발광 · 수상 ─────────────────── -->
+<section class="zone z5">
+  <div class="zone-inner reveal">
+    <p class="eyebrow muted"><span class="depth">수심 −3,300 m</span><span>발광 · BIOLUMINESCENCE</span></p>
+    <h2>여기까지 내려오는 동안 만난 빛들</h2>
+    <ul class="lights">
+      <li><span class="glow" aria-hidden="true"></span><span class="yr">2016</span><span>해양수산부장관 표창</span></li>
+      <li><span class="glow" aria-hidden="true"></span><span class="yr">2017</span><span>한국마린엔지니어링학회 젊은 연구자상</span></li>
+      <li><span class="glow" aria-hidden="true"></span><span class="yr">2018</span><span>목포해양대학교 우수교육교수</span></li>
+      <li><span class="glow" aria-hidden="true"></span><span class="yr">2022</span><span>한국동력기계공학회 논문상</span></li>
+      <li><span class="glow" aria-hidden="true"></span><span class="yr">2023</span><span>부산광역시장 표창</span></li>
+      <li><span class="glow" aria-hidden="true"></span><span class="yr">2025</span><span>한국과학기술단체총연합회 과학기술논문상</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ── −3,742 m · 해저 · 연락 ─────────────────── -->
+<section class="zone z6 abyss">
+  <div class="zone-inner reveal">
+    <p class="eyebrow muted"><span class="depth">수심 −3,742 m</span><span>해저 · SEAFLOOR</span></p>
+    <h2>가장 깊은 곳에도 빛은 있다 —<br>스스로 내는 빛</h2>
+    <p>심해의 생물은 빛이 없다고 어두워지지 않는다. 제 몸으로 빛을 만들어
+    서로를 부른다. 여기까지 내려온 당신에게도, 불 하나를 켜 둔다.</p>
+    <a class="lure" href="mailto:julee@kmou.ac.kr"><span class="dot" aria-hidden="true"></span>julee@kmou.ac.kr</a>
+    <dl class="berth muted">
+      <dt>전화 TEL</dt><dd>051-410-4662</dd>
+      <dt>연구실 OFFICE</dt><dd>한국해양대학교 해사대학 신관(C6) 319호</dd>
+      <dt>실험실 LAB</dt><dd>해사대학 신관(C6) 372호</dd>
+      <dt>기록 SCHOLAR</dt><dd><a href="https://scholar.google.co.kr/citations?user=BB3U0zYAAAAJ&amp;hl=ko" target="_blank" rel="noopener">scholar.google.co.kr</a></dd>
+    </dl>
+    <p class="seafloor-note muted">해저 도달 — 3,742 m. 동해에서 가장 깊은 곳의 깊이다.</p>
+    <p class="ascend"><a href="#top">부상 ASCEND ↑ — 다시 수면으로</a></p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p class="credo">깊고, 조용하고, 정확한 것 — Claude가 생각하는 가장 아름다운 것으로 지었다.</p>
+  <p>이재웅 · 한국해양대학교 기관시스템공학부 · 2026</p>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var motionMql = window.matchMedia("(prefers-reduced-motion: reduce)");
+  /* OS가 '동작 줄이기'여도 ?motion=full 로 열면 전체 연출을 명시적으로 선택할 수 있다 */
+  var forceFull = false;
+  try { forceFull = new URLSearchParams(window.location.search).get("motion") === "full"; } catch (err) {}
+  var reduced = motionMql.matches && !forceFull;
+  document.documentElement.classList.toggle("reduced", reduced);
+  document.documentElement.classList.toggle("motion-full", forceFull);
+  var paused = false;
+  function animating() { return !reduced && !paused; }
+  var finePointer = window.matchMedia("(pointer: fine)").matches;
+  var mouse = { x: -9999, y: -9999, on: false };
+  var lamp = document.getElementById("lamp");
+  var lampDepth = 0;
+  var snowFade = 0;
+
+  /* 테마가 바뀌면 캔버스 색도 다시 읽는다 */
+  var colors = { wave: "#9FC4C4", accent: "#E4A84C", snow: "#D9E8E7" };
+  function readColors() {
+    var cs = getComputedStyle(document.documentElement);
+    colors.wave = cs.getPropertyValue("--wave").trim() || colors.wave;
+    colors.accent = cs.getPropertyValue("--wave-accent").trim() || colors.accent;
+    colors.snow = cs.getPropertyValue("--ink-deep").trim() || colors.snow;
+  }
+  readColors();
+  function onThemeChange() { readColors(); drawWaves(); }
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onThemeChange);
+  new MutationObserver(onThemeChange).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  /* ── 수면의 파도: 흘러가는 등심선 ── */
+  var wc = document.getElementById("waves");
+  var wctx = wc.getContext("2d");
+  var t = 0;
+  function sizeWave() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var r = wc.parentElement.getBoundingClientRect();
+    wc.width = r.width * dpr;
+    wc.height = r.height * dpr;
+    wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function drawWaves() {
+    var w = wc.clientWidth, h = wc.clientHeight;
+    wctx.clearRect(0, 0, w, h);
+    /* 커서·손끝 아래에서 수면이 살짝 부풀어 오른다 */
+    var mrect = (mouse.on && !reduced) ? wc.getBoundingClientRect() : null;
+    var mxc = mrect ? mouse.x - mrect.left : 0;
+    var myc = mrect ? mouse.y - mrect.top : 0;
+    var lines = 9;
+    for (var i = 0; i < lines; i++) {
+      var isAccent = i === 4;
+      var baseY = h * (0.18 + 0.07 * i);
+      wctx.beginPath();
+      for (var x = 0; x <= w; x += 6) {
+        var y = baseY
+          + Math.sin(x * 0.006 + t * (0.6 + i * 0.07)) * 10
+          + Math.sin(x * 0.013 - t * (0.4 + i * 0.05) + i * 1.7) * 6
+          + Math.sin(x * 0.002 + t * 0.25 + i * 0.9) * 14;
+        if (mrect) {
+          var dx = x - mxc, dy = baseY - myc;
+          y -= 12 * Math.exp(-(dx * dx) / 26000 - (dy * dy) / 42000);
+        }
+        if (x === 0) wctx.moveTo(x, y); else wctx.lineTo(x, y);
+      }
+      wctx.strokeStyle = isAccent ? colors.accent : colors.wave;
+      wctx.globalAlpha = isAccent ? 0.8 : 0.32 - i * 0.012;
+      wctx.lineWidth = 1;
+      wctx.stroke();
+    }
+    wctx.globalAlpha = 1;
+  }
+  var waveActive = false;
+  function waveLoop() {
+    if (!animating()) { waveActive = false; drawWaves(); return; }
+    t += 0.012; drawWaves(); requestAnimationFrame(waveLoop);
+  }
+  function startWaves() {
+    if (animating() && !waveActive) { waveActive = true; requestAnimationFrame(waveLoop); }
+  }
+  sizeWave();
+  window.addEventListener("resize", function () { sizeWave(); if (!waveActive) drawWaves(); });
+  if (reduced) { t = 6; drawWaves(); } else { startWaves(); }
+
+  /* ── 항해: 세로 스크롤이 가로 항로가 된다 ── */
+  var voyageEl = document.getElementById("voyage");
+  var vTrack = document.getElementById("voyage-track");
+  function sizeVoyage() {
+    if (reduced) { voyageEl.style.height = ""; vTrack.style.transform = ""; return; }
+    var extra = Math.max(0, vTrack.scrollWidth - window.innerWidth);
+    voyageEl.style.height = (window.innerHeight + extra) + "px";
+  }
+  function steerVoyage() {
+    if (reduced) return;
+    var extra = voyageEl.offsetHeight - window.innerHeight;
+    if (extra <= 0) { vTrack.style.transform = ""; return; }
+    var p = (window.scrollY - voyageEl.offsetTop) / extra;
+    p = Math.min(1, Math.max(0, p));
+    var dist = Math.max(0, vTrack.scrollWidth - window.innerWidth);
+    vTrack.style.transform = "translateX(" + (-p * dist).toFixed(1) + "px)";
+  }
+  sizeVoyage();
+  window.addEventListener("resize", function () { sizeVoyage(); steerVoyage(); });
+  /* 텍스트 확대·글꼴 변경 등 resize 이벤트 없는 리플로에도 대응 */
+  if ("ResizeObserver" in window) {
+    new ResizeObserver(function () { sizeVoyage(); steerVoyage(); buildAnchors(); }).observe(vTrack);
+  }
+
+  /* ── 수심계: 섹션 표기 수심과 일치하는 구간별 보간 ── */
+  var MAX_DEPTH = 3742;
+  var gauge = document.getElementById("gauge");
+  var gaugeNum = document.getElementById("gauge-num");
+  var gaugeZone = document.getElementById("gauge-zone");
+  var zones = [
+    [0, "수면 SURFACE"], [1, "유광층 EPIPELAGIC"], [200, "박광층 MESOPELAGIC"],
+    [800, "항해 UNDERWAY"], [1400, "무광층 BATHYPELAGIC"], [2700, "무광층 심부 LOWER BATHYPELAGIC"],
+    [3200, "발광 BIOLUMINESCENCE"], [3700, "해저 SEAFLOOR"]
+  ];
+  /* 각 섹션의 문서 위치 ↔ 표기 수심 앵커 */
+  var anchorDepths = [0, 40, 540, 800, 1400, 2700, 3300, 3742];
+  var anchorEls = [".hero", "#track", ".z2", "#voyage", ".z3", ".z4", ".z5", ".z6"].map(function (s) {
+    return document.querySelector(s);
+  });
+  var anchors = [];
+  function buildAnchors() {
+    var ref = window.innerHeight * 0.35;
+    var max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+    anchors = anchorEls.map(function (el, i) {
+      var y = el.getBoundingClientRect().top + window.scrollY - ref;
+      return [Math.min(Math.max(0, y), max), anchorDepths[i]];
+    });
+    anchors.unshift([0, 0]);
+    anchors.push([max, MAX_DEPTH]);
+  }
+  buildAnchors();
+  window.addEventListener("resize", buildAnchors);
+  function depthAt(y) {
+    for (var i = 1; i < anchors.length; i++) {
+      if (y <= anchors[i][0]) {
+        var a = anchors[i - 1], b = anchors[i];
+        var span = b[0] - a[0];
+        var f = span > 0 ? (y - a[0]) / span : 1;
+        return a[1] + (b[1] - a[1]) * f;
+      }
+    }
+    return MAX_DEPTH;
+  }
+  var ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function () {
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      var f = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      var d = Math.round(depthAt(window.scrollY));
+      gaugeNum.textContent = (d > 0 ? "−" : "") + d.toLocaleString("ko-KR") + " m";
+      var label = zones[0][1];
+      for (var i = 0; i < zones.length; i++) if (d >= zones[i][0]) label = zones[i][1];
+      gaugeZone.textContent = label;
+      gauge.classList.toggle("on", window.scrollY > window.innerHeight * 0.35);
+      snowFade = Math.max(0, (f - 0.2) * 0.9);
+      steerVoyage();
+      /* 탐조등은 수온약층 아래에서만 켜진다 */
+      lampDepth = d > 560 ? Math.min(0.9, (d - 560) / 700) : 0;
+      if (!reduced && mouse.on) lamp.style.opacity = String(lampDepth);
+      ticking = false;
+    });
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  /* ── 바다눈 ── */
+  var sc = document.getElementById("snow");
+  var sctx = sc.getContext("2d");
+  var flakes = [];
+  var snowActive = false;
+  function sizeSnow() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    sc.width = window.innerWidth * dpr;
+    sc.height = window.innerHeight * dpr;
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function seed() {
+    flakes = [];
+    var n = Math.round(window.innerWidth / 16);
+    for (var i = 0; i < n; i++) {
+      flakes.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        r: 0.6 + Math.random() * 1.4,
+        vy: 0.12 + Math.random() * 0.35,
+        vx: -0.08 + Math.random() * 0.16,
+        a: 0.08 + Math.random() * 0.3
+      });
+    }
+  }
+  /* 숨 — 탭·클릭 지점에서 기포가 올라온다 */
+  var bubbles = [];
+  function spawnBubbles(x, y) {
+    if (!animating()) return;
+    var n = 8 + Math.round(Math.random() * 6);
+    for (var i = 0; i < n; i++) {
+      bubbles.push({
+        x: x + (Math.random() - 0.5) * 26,
+        y: y + (Math.random() - 0.5) * 12,
+        r: 0.8 + Math.random() * 2.4,
+        vy: 0.5 + Math.random() * 1.1,
+        w: Math.random() * Math.PI * 2,
+        ws: 0.03 + Math.random() * 0.05,
+        a: 0.45 + Math.random() * 0.3,
+        life: 1
+      });
+    }
+    startSnow();
+  }
+  window.addEventListener("pointerdown", function (e) { spawnBubbles(e.clientX, e.clientY); });
+  function snowLoop() {
+    if (!animating()) {
+      snowActive = false;
+      bubbles = [];
+      sctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      return;
+    }
+    var w = window.innerWidth, h = window.innerHeight;
+    sctx.clearRect(0, 0, w, h);
+    sctx.fillStyle = colors.snow;
+    for (var i = 0; i < flakes.length; i++) {
+      var p = flakes[i];
+      p.y += p.vy; p.x += p.vx;
+      if (p.y > h + 4) { p.y = -4; p.x = Math.random() * w; }
+      if (p.x < -4) p.x = w + 4;
+      if (p.x > w + 4) p.x = -4;
+      sctx.globalAlpha = p.a * snowFade;
+      sctx.beginPath();
+      sctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      sctx.fill();
+    }
+    sctx.strokeStyle = colors.snow;
+    sctx.lineWidth = 1;
+    for (var b = bubbles.length - 1; b >= 0; b--) {
+      var q = bubbles[b];
+      q.w += q.ws;
+      q.y -= q.vy;
+      q.x += Math.sin(q.w) * 0.6;
+      q.life -= 0.008;
+      if (q.y < -6 || q.life <= 0) { bubbles.splice(b, 1); continue; }
+      sctx.globalAlpha = q.a * Math.max(0, Math.min(1, q.life * 1.4));
+      sctx.beginPath();
+      sctx.arc(q.x, q.y, q.r, 0, Math.PI * 2);
+      sctx.stroke();
+    }
+    sctx.globalAlpha = 1;
+    requestAnimationFrame(snowLoop);
+  }
+  function startSnow() {
+    if (animating() && !snowActive) { snowActive = true; requestAnimationFrame(snowLoop); }
+  }
+  sizeSnow(); seed(); startSnow();
+  window.addEventListener("resize", function () { sizeSnow(); seed(); });
+
+  /* ── 모션 제어: 사용자 토글 + OS '동작 줄이기' 실시간 반영 ── */
+  var toggleBtn = document.getElementById("motion-toggle");
+  function updateMotion() {
+    document.body.classList.toggle("paused", paused);
+    toggleBtn.hidden = reduced;
+    toggleBtn.setAttribute("aria-pressed", String(paused));
+    toggleBtn.textContent = paused ? "물결 재생 PLAY" : "물결 멈춤 PAUSE";
+    if (animating()) { startWaves(); startSnow(); } else { drawWaves(); }
+  }
+  toggleBtn.addEventListener("click", function () { paused = !paused; updateMotion(); });
+  motionMql.addEventListener("change", function (e) {
+    reduced = e.matches && !forceFull;
+    document.documentElement.classList.toggle("reduced", reduced);
+    updateMotion();
+    sizeVoyage(); buildAnchors(); onScroll();
+    if (reduced) { lamp.style.opacity = "0"; }
+  });
+  updateMotion();
+
+  /* ── 커서 반응: 현창의 시선 · 잠수정 탐조등 ── */
+  var porthole = document.querySelector(".porthole");
+  window.addEventListener("pointermove", function (e) {
+    mouse.x = e.clientX; mouse.y = e.clientY; mouse.on = true;
+    if (reduced) return;
+    /* 탐조등은 손끝(터치)도 따라간다 */
+    lamp.style.transform = "translate(" + mouse.x + "px," + mouse.y + "px)";
+    lamp.style.opacity = String(lampDepth);
+    /* 현창의 시선은 마우스에서만 — 스크롤 중의 손가락을 좇으면 어지럽다 */
+    if (finePointer && porthole) {
+      var cx = (mouse.x / window.innerWidth - 0.5) * 2;
+      var cy = (mouse.y / window.innerHeight - 0.5) * 2;
+      porthole.style.transform = "translate(" + (cx * 7).toFixed(1) + "px," + (cy * 5).toFixed(1) + "px)";
+    }
+  }, { passive: true });
+  document.documentElement.addEventListener("mouseleave", function () {
+    mouse.on = false;
+    lamp.style.opacity = "0";
+    if (porthole) porthole.style.transform = "";
+  });
+
+  /* ── 스크롤 리빌 ── */
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+})();
+</script>
+</body>
+</html>
